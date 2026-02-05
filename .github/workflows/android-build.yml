@@ -12,7 +12,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22 # ACTUALIZADO: Requisito de Capacitor CLI
+          node-version: 22
 
       - name: Install Dependencies
         run: npm install
@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21' # ACTUALIZADO: Requisito para Capacitor 6+ y Android 14+
 
       - name: Sync Capacitor
         run: npx cap sync android
