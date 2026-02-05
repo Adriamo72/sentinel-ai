@@ -1,0 +1,9 @@
+
+{
+  "name": "Sentinel AI Security Hub",
+  "description": "A high-performance real-time security monitoring dashboard that uses Gemini AI to analyze camera feeds and audio streams for robberies, assaults, and medical emergencies.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
