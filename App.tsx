@@ -1,15 +1,11 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Shield, AlertCircle, Radio, Activity } from 'lucide-react';
 import { setupAcousticSurveillance } from './services/geminiService';
 import { ForensicService } from './services/forensicService';
 import CameraView from './components/CameraView';
 
-// Simulamos el plugin nativo si no estamos en entorno APK
-const BackgroundMode = (window as any).BackgroundMode || {
-  enable: () => console.log("BG Mode Standby"),
-  on: (event: string, cb: Function) => console.log(`Event listener: ${event}`),
-  setDefaults: (cfg: any) => console.log("BG Configured")
-};
+// Soporte para plugin nativo
+const BackgroundMode = (window as any).BackgroundMode || (window as any).cordova?.plugins?.backgroundMode;
 
 const App: React.FC = () => {
   const [incidenteEnCurso, setIncidenteEnCurso] = useState(false);
@@ -17,16 +13,20 @@ const App: React.FC = () => {
   const [trustEmail, setTrustEmail] = useState("");
   const cameraRef = useRef<any>(null);
   const incidenteRef = useRef(false);
-  const recognitionRef = useRef<any>(null);
 
   // ACCIÓN FORENSE Y PERSUASIÓN
   const dispararTrampa = useCallback(async () => {
     if (!incidenteRef.current) return;
+    
+    // Captura inmediata antes de la persuasión
     if (cameraRef.current?.takeSnapshot) {
       const selfie = cameraRef.current.takeSnapshot();
-      await ForensicService.sendEmailReport(trustEmail, selfie, "Almagro - Sector Táctico");
+      if (selfie) {
+        await ForensicService.sendEmailReport(trustEmail, selfie, "Almagro - Perímetro Activo");
+      }
     }
-    const msg = new SpeechSynthesisUtterance("Protocolo Sentinel. Rostro capturado. Evidencia enviada.");
+
+    const msg = new SpeechSynthesisUtterance("Protocolo Sentinel. Evidencia exfiltrada.");
     msg.lang = 'es-AR';
     window.speechSynthesis.speak(msg);
     
@@ -34,30 +34,27 @@ const App: React.FC = () => {
     setIncidenteEnCurso(false);
   }, [trustEmail]);
 
-  // BUCLE DE REPARACIÓN DE MICRÓFONO
+  // MOTOR DE AUDIO E IA
   const iniciarGuardiaIA = useCallback(async () => {
     try {
       const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioContextClass();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      (window as any).activeStream = stream;
+      await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const sentinelIA = await setupAcousticSurveillance(
         (alert) => {
           if (alert.alerta_activa) {
             incidenteRef.current = true;
             setIncidenteEnCurso(true);
-            dispararTrampa(); // Ejecución inmediata al detectar amenaza
+            dispararTrampa(); 
           }
         },
-        (text) => console.log("Sentinel Audio:", text)
+        (text) => console.log("Radar:", text)
       );
 
       const SpeechConstructor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechConstructor) return;
-
       const recognition = new SpeechConstructor();
       recognition.continuous = true;
       recognition.interimResults = true;
@@ -68,36 +65,20 @@ const App: React.FC = () => {
         sentinelIA.analyzeText(text);
       };
 
-      // Si el micro se pierde (por una llamada), se reinicia solo al colgar
-      recognition.onend = () => {
-        if (incidenteRef.current === false && isActive) {
-          setTimeout(iniciarGuardiaIA, 3000);
-        }
-      };
-
+      recognition.onend = () => { if (isActive) setTimeout(iniciarGuardiaIA, 3000); };
       recognition.start();
-      recognitionRef.current = recognition;
       setIsActive(true);
 
     } catch (err: any) {
-      console.error("Fallo de hardware:", err);
-      // Reintento silencioso cada 5 segundos hasta que el micro se libere
       setTimeout(iniciarGuardiaIA, 5000);
     }
   }, [isActive, dispararTrampa]);
 
-  // ACTIVACIÓN DEL MODO CENTINELA PERSISTENTE
   const armarPerimetro = async () => {
-    BackgroundMode.enable();
-    BackgroundMode.setDefaults({
-      title: 'Sentinel Security Hub',
-      text: 'Guardia activa en segundo plano',
-      icon: 'ic_launcher',
-      color: 'F53D3D',
-      resume: true,
-      hidden: false
-    });
-
+    if (BackgroundMode) {
+      BackgroundMode.enable();
+      BackgroundMode.setDefaults({ title: 'Sentinel', text: 'Vigilancia Activa', hidden: false });
+    }
     await iniciarGuardiaIA();
   };
 
@@ -106,56 +87,39 @@ const App: React.FC = () => {
       <div className="border-b border-green-900 pb-2 mb-4 flex justify-between items-center text-[10px]">
         <div className="flex items-center gap-2">
           <Shield className={isActive ? "text-green-400 animate-pulse" : "text-zinc-800"} />
-          <span className="tracking-widest">SENTINEL HUD v2.0</span>
+          <span>SENTINEL TACTICAL HUD</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Radio size={12} className={isActive ? "text-red-500 animate-ping" : ""} />
-          <span className="text-[8px]">{isActive ? "ON AIR" : "OFFLINE"}</span>
-        </div>
+        <Radio size={12} className={isActive ? "text-red-500 animate-ping" : ""} />
       </div>
 
       <div 
-        className={`flex-1 border rounded relative overflow-hidden transition-all duration-700 ${incidenteEnCurso ? 'border-red-600 shadow-[0_0_50px_rgba(255,0,0,0.3)]' : 'border-green-900'}`} 
+        className={`flex-1 border rounded relative overflow-hidden transition-all duration-700 ${incidenteEnCurso ? 'border-red-600' : 'border-green-900'}`} 
         onClick={dispararTrampa}
       >
-        <CameraView ref={cameraRef} onDetection={() => {}} isAnalyzing={false} setIsAnalyzing={() => {}} />
+        {/* CORRECCIÓN: Eliminamos las props que daban error de compilación */}
+        <CameraView ref={cameraRef} /> 
         
         {incidenteEnCurso && (
-          <div className="absolute inset-0 bg-red-900/40 backdrop-blur-sm flex flex-col items-center justify-center">
-            <AlertCircle size={60} className="text-red-500 animate-bounce" />
-            <p className="text-red-500 font-black text-xl uppercase mt-4">Trampa Ejecutada</p>
-            <p className="text-white text-[10px] animate-pulse">EXTRAYENDO EVIDENCIA...</p>
-          </div>
-        )}
-
-        {!isActive && (
-          <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-8 text-center">
-            <p className="text-[10px] opacity-50">SISTEMA EN ESPERA. CONFIGURE EMAIL Y ARME PERÍMETRO.</p>
+          <div className="absolute inset-0 bg-red-900/40 backdrop-blur-sm flex flex-col items-center justify-center text-center">
+            <AlertCircle size={40} className="text-red-500 animate-bounce" />
+            <p className="text-red-500 font-black text-xs mt-2 uppercase">Trampa Ejecutada</p>
           </div>
         )}
       </div>
 
       <div className="mt-4 space-y-2">
-        <div className="relative">
-          <input 
-            type="email" placeholder="EMAIL_DE_RESPALDO@GMAIL.COM" 
-            className="w-full bg-zinc-900 border border-green-900 p-4 text-[11px] text-green-400 focus:border-green-400 focus:outline-none transition-colors"
-            onChange={(e) => setTrustEmail(e.target.value)}
-          />
-          <Activity size={14} className="absolute right-4 top-4 text-green-900" />
-        </div>
-        
+        <input 
+          type="email" placeholder="EMAIL_DE_RESPALDO" 
+          className="w-full bg-zinc-900 border border-green-900 p-4 text-[10px] text-green-400 focus:outline-none"
+          onChange={(e) => setTrustEmail(e.target.value)}
+        />
         <button 
           onClick={armarPerimetro}
+          className={`w-full py-4 text-xs font-black uppercase border-2 ${isActive ? 'border-zinc-800 text-zinc-700' : 'border-green-600 hover:bg-green-600 hover:text-black'}`}
           disabled={isActive}
-          className={`w-full py-5 text-sm font-black uppercase tracking-tighter transition-all ${isActive ? 'bg-zinc-900 text-zinc-700 border-zinc-800' : 'border-2 border-green-600 hover:bg-green-600 hover:text-black active:scale-95'}`}
         >
           {isActive ? 'Vigilancia Activa' : 'Iniciar Guardia Persistente'}
         </button>
-      </div>
-      
-      <div className="mt-2 text-[8px] text-zinc-600 text-center uppercase tracking-widest">
-        Protección Forense IA - Buenos Aires
       </div>
     </div>
   );
